@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 
 // The exact one-liner a Mac user pastes into Terminal. It gathers every
-// screenshot Spotlight knows about into one folder and opens it. Uses
-// `mdfind kMDItemIsScreenCapture:1` (no Full Disk Access needed) and `cp -n`
-// so nothing is ever overwritten. Quoting is verified safe for spaced names.
+// screenshot into one folder, reports how many, and opens the folder.
+// Two discovery paths because macOS privacy filtering can hide Spotlight
+// (mdfind) results from a Terminal that hasn't been granted folder access
+// yet: the `find` fallback over the usual folders triggers the standard
+// "allow access" prompts instead of silently returning nothing. `cp -n`
+// never overwrites; quoting is verified safe for spaced filenames.
 const MAC_COMMAND =
-  'mkdir -p ~/Desktop/my-screenshots && mdfind kMDItemIsScreenCapture:1 | while IFS= read -r f; do cp -n "$f" ~/Desktop/my-screenshots/; done && open ~/Desktop/my-screenshots';
+  "mkdir -p ~/Desktop/my-screenshots; { mdfind 'kMDItemIsScreenCapture = 1'; find ~/Desktop ~/Downloads ~/Documents ~/Pictures -type f \\( -iname 'screenshot*' -o -iname 'screen shot*' \\) 2>/dev/null; } | sort -u | while IFS= read -r f; do cp -n \"$f\" ~/Desktop/my-screenshots/ 2>/dev/null; done; echo \"Collected $(ls ~/Desktop/my-screenshots | wc -l | tr -d ' ') screenshots.\"; open ~/Desktop/my-screenshots";
 
 type Platform = "mac" | "iphone" | "other";
 
@@ -109,8 +112,10 @@ function MacSteps({ onChooseFolder }: { onChooseFolder: () => void }) {
         </p>
         <CommandBlock command={MAC_COMMAND} />
         <p className="step-fineprint">
-          It only copies files, never deletes or overwrites, and needs no
-          special permissions.
+          It only copies files, never deletes or overwrites. If your Mac asks
+          whether Terminal can access your Desktop, Documents, or Downloads,
+          click <strong>Allow</strong> — that&apos;s where your screenshots
+          live. It prints how many it collected.
         </p>
       </Step>
       <Step n={2}>
