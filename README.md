@@ -1,5 +1,7 @@
 # LeakShot Web
 
+**Try it now: [leakshot-web.vercel.app](https://leakshot-web.vercel.app)**
+
 Find secrets hiding in your screenshots — **entirely in your browser**.
 
 Drag in screenshots (or a whole folder) and LeakShot reads them with in-browser
