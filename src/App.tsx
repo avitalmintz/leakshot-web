@@ -150,10 +150,22 @@ export default function App() {
         <div className="logo-row">
           <span className="logo">LeakShot</span>
           <span className="badge-web">web</span>
+          <a
+            className="src-link"
+            href="https://github.com/avitalmintz/leakshot-web"
+            target="_blank"
+            rel="noreferrer"
+          >
+            source
+          </a>
         </div>
-        <h1>Find secrets hiding in your screenshots.</h1>
+        <p className="kicker">Client-side secret scanner</p>
+        <h1>
+          Find the <span className="redacted">secrets</span> hiding in your
+          screenshots.
+        </h1>
         <p className="tagline">
-          Scans in your browser. Your screenshots never leave your device.
+          Scans run in your browser. Your screenshots never leave your device.
         </p>
         <p className="subtag">
           OCR and secret detection run entirely on your machine via WebAssembly.
