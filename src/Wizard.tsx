@@ -106,8 +106,8 @@ function MacSteps({ onChooseFolder }: { onChooseFolder: () => void }) {
     <div className="steps">
       <Step n={1}>
         <p className="step-line">
-          Copy this command and paste it into Terminal (press{" "}
-          <kbd>⌘</kbd>
+          To gather the screenshots saved <strong>on this Mac&apos;s disk</strong>,
+          copy this command and paste it into Terminal (press <kbd>⌘</kbd>
           <kbd>Space</kbd>, type <em>Terminal</em>, hit Return).
         </p>
         <CommandBlock command={MAC_COMMAND} />
@@ -132,10 +132,24 @@ function MacSteps({ onChooseFolder }: { onChooseFolder: () => void }) {
           .
         </p>
       </Step>
-      <div className="sub-tip">
-        <span className="sub-tip-label">Screenshots saved in Photos?</span>{" "}
-        Open Photos → Media Types → Screenshots → <kbd>⌘</kbd>
-        <kbd>A</kbd> → drag them into this window.
+      <div className="alt-method">
+        <p className="alt-method-label">
+          iPhone screenshots? They live in the Photos app, not on disk — the
+          command above can&apos;t see them. Get them like this:
+        </p>
+        <ol className="alt-method-steps">
+          <li>
+            Open <strong>Photos</strong> on this Mac
+          </li>
+          <li>
+            Sidebar → <strong>Media Types → Screenshots</strong>
+          </li>
+          <li>
+            <kbd>⌘</kbd>
+            <kbd>A</kbd> to select all, then <strong>drag the selection into
+            the drop zone below</strong>
+          </li>
+        </ol>
       </div>
     </div>
   );
