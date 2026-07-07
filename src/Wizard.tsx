@@ -39,19 +39,16 @@ export function Wizard({ onChooseFolder, onChooseFiles }: WizardProps) {
             active={platform === "mac"}
             onClick={() => setPlatform("mac")}
             label="Mac"
-            emoji="🖥️"
           />
           <TabButton
             active={platform === "iphone"}
             onClick={() => setPlatform("iphone")}
             label="iPhone"
-            emoji="📱"
           />
           <TabButton
             active={platform === "other"}
             onClick={() => setPlatform("other")}
             label="Other"
-            emoji="💻"
           />
         </div>
       </div>
@@ -69,12 +66,10 @@ function TabButton({
   active,
   onClick,
   label,
-  emoji,
 }: {
   active: boolean;
   onClick: () => void;
   label: string;
-  emoji: string;
 }) {
   return (
     <button
@@ -83,7 +78,7 @@ function TabButton({
       className={`platform-tab ${active ? "active" : ""}`}
       onClick={onClick}
     >
-      <span aria-hidden="true">{emoji}</span> {label}
+      {label}
     </button>
   );
 }
@@ -226,7 +221,7 @@ function CommandBlock({ command }: { command: string }) {
         onClick={copy}
         aria-label="Copy command"
       >
-        {copied ? "✓ Copied" : "Copy"}
+        {copied ? "Copied" : "Copy"}
       </button>
     </div>
   );

@@ -148,7 +148,7 @@ export default function App() {
     <div className="app">
       <header className="hero">
         <div className="logo-row">
-          <span className="logo">🛡️ LeakShot</span>
+          <span className="logo">LeakShot</span>
           <span className="badge-web">web</span>
         </div>
         <h1>Find secrets hiding in your screenshots.</h1>
@@ -289,7 +289,6 @@ function DropZone({
       onDragLeave={onDragLeave}
     >
       <div className="dropzone-inner">
-        <div className="drop-icon">📸</div>
         <p className="drop-title">Drop your screenshots here</p>
         <p className="drop-sub">
           PNG, JPG or WebP. Folders are scanned recursively.
