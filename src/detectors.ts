@@ -438,10 +438,12 @@ const _HIGH_PATTERNS: _Pattern[] = [
   },
   {
     // Exclude structurally invalid SSNs: area 000, 666, and 900-999 are never
-    // assigned; group 00 and serial 0000 are also invalid.
+    // assigned; group 00 and serial 0000 are also invalid. OCR often renders
+    // the hyphens as en/em dashes, so accept any dash-like separator.
     name: "SSN",
     secretType: "ssn",
-    regex: /\b((?!000|666|9\d\d)\d{3}-(?!00)\d{2}-(?!0000)\d{4})\b/g,
+    regex:
+      /\b((?!000|666|9\d\d)\d{3}[-‐-―](?!00)\d{2}[-‐-―](?!0000)\d{4})\b/g,
     group: 1,
   },
 ];
@@ -694,6 +696,61 @@ function _runContextDetector(
 }
 
 // ---------------------------------------------------------------------------
+// SSN context detector
+// ---------------------------------------------------------------------------
+
+// When the line itself says it holds a social security number, accept the
+// looser formats people (and OCR) actually produce: spaced groups, dots,
+// dash variants, or all nine digits run together. Without that context these
+// shapes are far too common (phone numbers, IDs) to flag.
+const _SSN_KEYWORD_RE = /social\s*security|(?<![A-Za-z])ssn(?![A-Za-z])/i;
+const _SSN_LOOSE_RE =
+  /(?<!\d)(?!000|666|9\d\d)\d{3}[ .‐-―-]?(?!00)\d{2}[ .‐-―-]?(?!0000)\d{4}(?!\d)/g;
+
+/** True when a line mentions social security / SSN. Exported for callers that
+ * track context across neighboring OCR lines (label above, number below). */
+export function hasSsnKeyword(line: string): boolean {
+  return _SSN_KEYWORD_RE.test(line);
+}
+
+/**
+ * Per-line flag: should loose SSN formats be accepted on this line? True when
+ * the line itself or a nearby line (label up to two lines above, or the line
+ * below) mentions social security. Forms put the label and the value on
+ * separate OCR lines, so same-line matching alone misses the obvious cases.
+ */
+export function ssnContextByLine(lines: string[]): boolean[] {
+  const kw = lines.map(hasSsnKeyword);
+  return lines.map(
+    (_, i) => kw[i] || kw[i - 1] === true || kw[i - 2] === true || kw[i + 1] === true,
+  );
+}
+
+function _runSsnContext(
+  line: string,
+  denoised: boolean,
+  contextFromNeighbors: boolean,
+): Finding[] {
+  if (!contextFromNeighbors && !_SSN_KEYWORD_RE.test(line)) return [];
+  const out: Finding[] = [];
+  for (const { value, start, end } of _finditer(_SSN_LOOSE_RE, line, 0)) {
+    out.push(
+      makeFinding({
+        detector: "SSN",
+        secretType: "ssn",
+        tier: TIER_HIGH,
+        matchedText: value,
+        start,
+        end,
+        denoised,
+        notes: "keyword context",
+      }),
+    );
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Public entry point
 // ---------------------------------------------------------------------------
 
@@ -724,7 +781,26 @@ function _dedupe(findings: Finding[]): Finding[] {
       best.set(key, f);
     }
   }
-  return Array.from(best.values());
+  // Second pass: the same secret often surfaces from two scan views with
+  // slightly different spans (e.g. "123 45 6789" raw vs collapsed). Collapse
+  // same-type findings whose spans overlap, preferring higher tier, then
+  // non-denoised, then the wider span (better redaction coverage).
+  const sorted = Array.from(best.values()).sort((a, b) => {
+    const t = tierRank[a.tier] - tierRank[b.tier];
+    if (t !== 0) return t;
+    const d = Number(a.denoised) - Number(b.denoised);
+    if (d !== 0) return d;
+    return b.end - b.start - (a.end - a.start);
+  });
+  const kept: Finding[] = [];
+  for (const f of sorted) {
+    const overlaps = kept.some(
+      (k) =>
+        k.secretType === f.secretType && f.start < k.end && k.start < f.end,
+    );
+    if (!overlaps) kept.push(f);
+  }
+  return kept;
 }
 
 function _charclass(c: string): string {
@@ -772,21 +848,28 @@ function _reanchor(f: Finding, rawLine: string): void {
  * raw line by searching for the matched text; if that fails we keep the view
  * offset (still useful, box mapping degrades gracefully).
  */
-export function scanLine(line: string): Finding[] {
+export function scanLine(
+  line: string,
+  opts?: { ssnContext?: boolean },
+): Finding[] {
   const findings: Finding[] = [];
+  const ssnContext = opts?.ssnContext ?? false;
 
   // View 1: raw
   let high = _runHighPatterns(line, false);
   high = high.concat(_runCardDetector(line, false));
   findings.push(...high);
   findings.push(..._runContextDetector(line, false, high));
+  findings.push(..._runSsnContext(line, false, ssnContext));
 
   // View 2: space-collapsed
   const collapsed = _collapseTokenSpaces(line);
   if (collapsed !== line) {
     let cHigh = _runHighPatterns(collapsed, true);
     cHigh = cHigh.concat(_runCardDetector(collapsed, true));
-    const cContext = _runContextDetector(collapsed, true, cHigh);
+    const cContext = _runContextDetector(collapsed, true, cHigh).concat(
+      _runSsnContext(collapsed, true, ssnContext),
+    );
     for (const f of cHigh.concat(cContext)) {
       _reanchor(f, line);
       findings.push(f);
@@ -811,8 +894,9 @@ export function scanLine(line: string): Finding[] {
  */
 export function scanText(lines: string[]): Finding[] {
   const all: Finding[] = [];
+  const ssnContext = ssnContextByLine(lines);
   for (let i = 0; i < lines.length; i++) {
-    for (const f of scanLine(lines[i])) {
+    for (const f of scanLine(lines[i], { ssnContext: ssnContext[i] })) {
       f.lineIndex = i;
       all.push(f);
     }

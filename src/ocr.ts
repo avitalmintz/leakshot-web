@@ -13,7 +13,7 @@
 
 import { createWorker } from "tesseract.js";
 import type { Worker } from "tesseract.js";
-import { scanLine, type Finding } from "./detectors";
+import { scanLine, ssnContextByLine, type Finding } from "./detectors";
 
 export interface Box {
   x0: number;
@@ -147,16 +147,24 @@ export async function scanImage(url: string): Promise<OcrFinding[]> {
   const lines: TesseractLine[] = collectLines(data);
 
   const results: OcrFinding[] = [];
-  for (const line of lines) {
-    // Build the line text the way we track word offsets: join words by a single
-    // space. This matches boxForSpan's cursor math and is close to line.text.
+  // Precompute each line's scan text so SSN keyword context can look across
+  // neighboring lines (forms put "Social Security Number" and the value on
+  // separate lines).
+  const lineData = lines.map((line) => {
     const words: WordBox[] = (line.words ?? []).map((w) => ({
       text: w.text,
       bbox: w.bbox,
     }));
+    // Join words by a single space. This matches boxForSpan's cursor math and
+    // is close to line.text.
     const lineText = words.map((w) => w.text).join(" ");
-    const textToScan = lineText || line.text || "";
-    const findings = scanLine(textToScan);
+    return { words, textToScan: lineText || line.text || "" };
+  });
+  const ssnContext = ssnContextByLine(lineData.map((l) => l.textToScan));
+
+  for (let i = 0; i < lineData.length; i++) {
+    const { words, textToScan } = lineData[i];
+    const findings = scanLine(textToScan, { ssnContext: ssnContext[i] });
     for (const f of findings) {
       const box = boxForSpan(words, f.start, f.end);
       if (box) {

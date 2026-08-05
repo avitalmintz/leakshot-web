@@ -88,6 +88,53 @@ describe("SSN", () => {
   it("rejects invalid area 900+", () => {
     expect(types("900-12-3456")).not.toContain("ssn");
   });
+
+  it("detects an SSN with OCR en-dashes", () => {
+    const f = findByType("123–45–6789", "ssn");
+    expect(f).toBeDefined();
+    expect(f!.tier).toBe(TIER_HIGH);
+  });
+
+  it("detects a spaced SSN when the line says SSN", () => {
+    const f = findByType("SSN: 123 45 6789", "ssn");
+    expect(f).toBeDefined();
+    expect(f!.tier).toBe(TIER_HIGH);
+  });
+
+  it("detects an unseparated SSN when the line says social security", () => {
+    const f = findByType("Social Security Number 123456789", "ssn");
+    expect(f).toBeDefined();
+    expect(f!.tier).toBe(TIER_HIGH);
+  });
+
+  it("does NOT flag bare 9 digits without SSN context", () => {
+    expect(types("order id 123456789")).not.toContain("ssn");
+    expect(types("call 123 45 6789")).not.toContain("ssn");
+  });
+
+  it("rejects invalid areas even with keyword context", () => {
+    expect(types("SSN: 666 12 3456")).not.toContain("ssn");
+  });
+
+  it("detects the number on the line after a social security label", () => {
+    const findings = scanText([
+      "Social Security Number",
+      "123 45 6789",
+    ]);
+    const f = findings.find((x) => x.secretType === "ssn");
+    expect(f).toBeDefined();
+    expect(f!.lineIndex).toBe(1);
+  });
+
+  it("does NOT flag a number two-plus lines below the label going up", () => {
+    const findings = scanText([
+      "Social Security Number",
+      "name: Jane Roe",
+      "phone",
+      "123 45 6789",
+    ]);
+    expect(findings.map((x) => x.secretType)).not.toContain("ssn");
+  });
 });
 
 describe("Context keyword (medium)", () => {
