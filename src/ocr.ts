@@ -92,13 +92,49 @@ interface TesseractLine {
   words: TesseractWord[];
 }
 
+// Retina screenshots are commonly 2880-3456px wide; tesseract at that size can
+// take minutes per image. Text is still cleanly readable to the engine around
+// this width, and OCR time drops to seconds.
+const MAX_OCR_DIM = 1500;
+
+/** Load an object/blob URL into an HTMLImageElement. */
+function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Could not load image"));
+    img.src = url;
+  });
+}
+
 /**
- * Run OCR on an image source and return findings with pixel boxes. `source` is
- * anything tesseract accepts (an image URL / File / HTMLImageElement / canvas).
+ * If the image exceeds MAX_OCR_DIM, draw it onto a smaller canvas for OCR.
+ * Returns the OCR source plus the factor to scale boxes back to natural pixels.
  */
-export async function scanImage(
-  source: string | File | HTMLImageElement | HTMLCanvasElement,
-): Promise<OcrFinding[]> {
+function downscaleForOcr(img: HTMLImageElement): {
+  source: HTMLImageElement | HTMLCanvasElement;
+  scaleBack: number;
+} {
+  const maxDim = Math.max(img.naturalWidth, img.naturalHeight);
+  if (maxDim <= MAX_OCR_DIM) return { source: img, scaleBack: 1 };
+  const scale = MAX_OCR_DIM / maxDim;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(img.naturalWidth * scale);
+  canvas.height = Math.round(img.naturalHeight * scale);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return { source: img, scaleBack: 1 };
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return { source: canvas, scaleBack: 1 / scale };
+}
+
+/**
+ * Run OCR on an image URL and return findings with pixel boxes in the image's
+ * natural resolution. Large images are downscaled before OCR (huge speedup)
+ * and boxes are scaled back up.
+ */
+export async function scanImage(url: string): Promise<OcrFinding[]> {
+  const img = await loadImage(url);
+  const { source, scaleBack } = downscaleForOcr(img);
   const worker = await getWorker();
   const { data } = await worker.recognize(
     source as never,
@@ -124,7 +160,15 @@ export async function scanImage(
     for (const f of findings) {
       const box = boxForSpan(words, f.start, f.end);
       if (box) {
-        results.push({ ...f, box });
+        results.push({
+          ...f,
+          box: {
+            x0: box.x0 * scaleBack,
+            y0: box.y0 * scaleBack,
+            x1: box.x1 * scaleBack,
+            y1: box.y1 * scaleBack,
+          },
+        });
       }
     }
   }

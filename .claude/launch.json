@@ -5,11 +5,10 @@
       "name": "dev",
       "runtimeExecutable": "sh",
       "runtimeArgs": [
-        "/Users/avitalmintz/Desktop/projects/leakshot-web/scripts/dev.sh",
-        "--port",
-        "5173"
+        "/Users/avitalmintz/Desktop/projects/leakshot-web/scripts/dev.sh"
       ],
-      "port": 5173
+      "port": 5173,
+      "autoPort": true
     }
   ]
 }
